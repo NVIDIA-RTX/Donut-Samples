@@ -58,9 +58,6 @@ private:
 
     nvrhi::BufferHandle m_ViewConstants;
     
-    nvrhi::TextureHandle m_DepthBuffer;
-    std::vector<nvrhi::FramebufferHandle> m_Framebuffers;
-
     std::shared_ptr<engine::ShaderFactory> m_ShaderFactory;
     std::unique_ptr<engine::Scene> m_Scene;
     std::shared_ptr<engine::DescriptorTableManager> m_DescriptorTableManager;
@@ -172,8 +169,6 @@ public:
 
     void BackBufferResizing() override
     { 
-        m_DepthBuffer = nullptr;
-        m_Framebuffers.clear();
         m_GraphicsPipeline = nullptr;
         m_BindingCache->Clear();
     }
@@ -181,34 +176,6 @@ public:
     void Render(nvrhi::IFramebuffer* framebuffer) override
     {
         const auto& fbinfo = framebuffer->getFramebufferInfo();
-
-        if (!m_DepthBuffer)
-        {
-            nvrhi::TextureDesc textureDesc;
-            textureDesc.format = nvrhi::Format::D24S8;
-            textureDesc.isRenderTarget = true;
-            textureDesc.initialState = nvrhi::ResourceStates::DepthWrite;
-            textureDesc.keepInitialState = true;
-            textureDesc.clearValue = nvrhi::Color(0.f);
-            textureDesc.useClearValue = true;
-            textureDesc.debugName = "DepthBuffer";
-            textureDesc.width = fbinfo.width;
-            textureDesc.height = fbinfo.height;
-            textureDesc.dimension = nvrhi::TextureDimension::Texture2D;
-
-            m_DepthBuffer = GetDevice()->createTexture(textureDesc);
-        }
-
-        m_Framebuffers.resize(GetDeviceManager()->GetBackBufferCount());
-
-        int const fbindex = GetDeviceManager()->GetCurrentBackBufferIndex();
-        if (!m_Framebuffers[fbindex])
-        {
-            nvrhi::FramebufferDesc framebufferDesc;
-            framebufferDesc.addColorAttachment(framebuffer->getDesc().colorAttachments[0]);
-            framebufferDesc.setDepthAttachment(m_DepthBuffer);
-            m_Framebuffers[fbindex] = GetDevice()->createFramebuffer(framebufferDesc);
-        }
 
         if (!m_GraphicsPipeline)
         {
@@ -221,7 +188,7 @@ public:
             pipelineDesc.renderState.depthStencilState.depthFunc = nvrhi::ComparisonFunc::GreaterOrEqual;
             pipelineDesc.renderState.rasterState.frontCounterClockwise = true;
             pipelineDesc.renderState.rasterState.setCullBack();
-            m_GraphicsPipeline = GetDevice()->createGraphicsPipeline(pipelineDesc, m_Framebuffers[fbindex]->getFramebufferInfo());
+            m_GraphicsPipeline = GetDevice()->createGraphicsPipeline(pipelineDesc, fbinfo);
         }
 
         nvrhi::Viewport windowViewport(float(fbinfo.width), float(fbinfo.height));
@@ -232,8 +199,9 @@ public:
         m_CommandList->open();
 
         nvrhi::TextureHandle colorBuffer = framebuffer->getDesc().colorAttachments[0].texture;
+        nvrhi::TextureHandle depthBuffer = framebuffer->getDesc().depthAttachment.texture;
         m_CommandList->clearTextureFloat(colorBuffer, nvrhi::AllSubresources, nvrhi::Color(0.f));
-        m_CommandList->clearDepthStencilTexture(m_DepthBuffer, nvrhi::AllSubresources, true, 0.f, true, 0);
+        m_CommandList->clearDepthStencilTexture(depthBuffer, nvrhi::AllSubresources, true, 0.f, true, 0);
 
         PlanarViewConstants viewConstants;
         m_View.FillPlanarViewConstants(viewConstants);
@@ -241,7 +209,7 @@ public:
 
         nvrhi::GraphicsState state;
         state.pipeline = m_GraphicsPipeline;
-        state.framebuffer = m_Framebuffers[fbindex];
+        state.framebuffer = framebuffer;
         state.bindings = { m_BindingSet, m_DescriptorTableManager->GetDescriptorTable() };
         state.viewport = m_View.GetViewportState();
         m_CommandList->setGraphicsState(state);
@@ -283,6 +251,7 @@ int main(int __argc, const char** __argv)
     app::DeviceManager* deviceManager = app::DeviceManager::Create(api);
 
     app::DeviceCreationParameters deviceParams;
+    deviceParams.depthBufferFormat = nvrhi::Format::D24S8;
 #ifdef _DEBUG
     deviceParams.enableDebugRuntime = true; 
     deviceParams.enableNvrhiValidationLayer = true;
