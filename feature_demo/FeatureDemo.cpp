@@ -60,10 +60,6 @@
 #include <nvrhi/utils.h>
 #include <nvrhi/common/misc.h>
 
-#ifdef DONUT_WITH_TASKFLOW
-#include <taskflow/taskflow.hpp>
-#endif
-
 using namespace donut;
 using namespace donut::math;
 using namespace donut::app;

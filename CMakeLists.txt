@@ -66,10 +66,7 @@ if (NVRHI_WITH_VULKAN OR NVRHI_WITH_DX12)
     add_subdirectory(examples/rt_bindless)
     add_subdirectory(examples/rt_particles)
     add_subdirectory(examples/meshlets)
-
-    if (DONUT_WITH_TASKFLOW)
-        add_subdirectory(examples/threaded_rendering)
-    endif()
+    add_subdirectory(examples/threaded_rendering)
 endif()
 
 if (NVRHI_WITH_DX12)

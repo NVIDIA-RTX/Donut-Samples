@@ -27,6 +27,7 @@
 #include <donut/engine/ShaderFactory.h>
 #include <donut/engine/CommonRenderPasses.h>
 #include <donut/engine/TextureCache.h>
+#include <donut/engine/ThreadPool.h>
 #include <donut/engine/Scene.h>
 #include <donut/engine/FramebufferFactory.h>
 #include <donut/engine/BindingCache.h>
@@ -34,7 +35,6 @@
 #include <donut/core/log.h>
 #include <donut/core/vfs/VFS.h>
 #include <donut/core/math/math.h>
-#include <taskflow/taskflow.hpp>
 
 using namespace donut;
 
@@ -49,7 +49,7 @@ private:
     std::array<nvrhi::CommandListHandle, 6> m_FaceCommandLists;
 
     bool m_UseThreads = true;
-    std::unique_ptr<tf::Executor> m_Executor;
+    std::unique_ptr<engine::ThreadPool> m_ThreadPool;
     
     nvrhi::TextureHandle m_DepthBuffer;
     nvrhi::TextureHandle m_ColorBuffer;
@@ -74,7 +74,7 @@ public:
         m_RootFS = std::make_shared<vfs::RootFileSystem>();
         m_RootFS->mount("/shaders/donut", frameworkShaderPath);
 
-        m_Executor = std::make_unique<tf::Executor>();
+        m_ThreadPool = std::make_unique<engine::ThreadPool>();
 
         m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), m_RootFS, "/shaders");
         m_CommonPasses = std::make_shared<engine::CommonRenderPasses>(GetDevice(), m_ShaderFactory);
@@ -141,7 +141,7 @@ public:
         std::unique_ptr<engine::Scene> scene = std::make_unique<engine::Scene>(GetDevice(),
             *m_ShaderFactory, fs, m_TextureCache, nullptr, nullptr);
 
-        if (scene->Load(sceneFileName))
+        if (scene->LoadWithThreadPool(sceneFileName, m_ThreadPool.get()))
         {
             m_Scene = std::move(scene);
             return true;
@@ -178,7 +178,7 @@ public:
     {
         m_Camera.Animate(fElapsedTimeSeconds);
 
-        GetDeviceManager()->SetInformativeWindowTitle(g_WindowTitle,m_UseThreads ? "(With threads)" : "(No threads)");
+        GetDeviceManager()->SetInformativeWindowTitle(g_WindowTitle, true, m_UseThreads ? "(With threads)" : "(No threads)");
     }
 
     void BackBufferResizing() override
@@ -218,15 +218,12 @@ public:
         m_CubemapView.SetTransform(viewMatrix, 0.1f, 100.f);
         m_CubemapView.UpdateCache();
 
-        tf::Taskflow taskFlow;
         if (m_UseThreads)
         {
             for (int face = 0; face < 6; face++)
             {
-                taskFlow.emplace([this, face]() { RenderCubeFace(face); });
+                m_ThreadPool->AddTask([this, face]() { RenderCubeFace(face); });
             }
-
-            m_Executor->run(taskFlow);
         }
         else
         {
@@ -272,7 +269,7 @@ public:
 
         if (m_UseThreads)
         {
-            m_Executor->wait_for_all();
+            m_ThreadPool->WaitForTasks();
         }
 
         nvrhi::ICommandList* commandLists[] = {
