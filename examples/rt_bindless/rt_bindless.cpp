@@ -259,7 +259,10 @@ public:
         if (!m_RayPipeline)
             return false;
 
-        m_ShaderTable = m_RayPipeline->createShaderTable();
+        auto shaderTableDesc = nvrhi::rt::ShaderTableDesc()
+            .enableCaching(3)
+            .setDebugName("Shader Table");
+        m_ShaderTable = m_RayPipeline->createShaderTable(shaderTableDesc);
 
         if (!m_ShaderTable)
             return false;
