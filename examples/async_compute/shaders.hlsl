@@ -49,7 +49,7 @@ struct Constants
 {
     uint counter;
 };
-DECLARE_CBUFFER(Constants, g_Constants, 0, 0);
+DECLARE_PUSH_CONSTANTS(Constants, g_Constants, 0, 0);
 RWTexture2D<float4> rwTexture0 : REGISTER_UAV(0, 0);
 
 //--------------------------------------------------------------------------------------
