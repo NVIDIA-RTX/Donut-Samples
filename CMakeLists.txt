@@ -67,6 +67,7 @@ if (NVRHI_WITH_VULKAN OR NVRHI_WITH_DX12)
     add_subdirectory(examples/rt_particles)
     add_subdirectory(examples/meshlets)
     add_subdirectory(examples/threaded_rendering)
+    add_subdirectory(examples/async_compute)
 endif()
 
 if (NVRHI_WITH_DX12)
